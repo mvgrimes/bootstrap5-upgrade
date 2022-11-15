@@ -1,0 +1,147 @@
+#!/usr/bin/env perl
+
+use 5.020;
+use strict;
+use warnings;
+use Path::Tiny;
+
+# :cex system("../bs5/upgrade-bs5 components") | copen
+
+my $SUFFIXES = qr/\.(html|jsx|tsx|md)$/i;
+
+sub reactstrap_v9 {
+    my ($line) = (@_);
+    my @errors = ();
+
+    my $match = sub {
+        my ( $re, $msg ) = @_;
+        $line =~ $re && push @errors, $msg;
+    };
+
+    #<<<
+    $match->( qr/<InputGroupAddon\b/ ,'This in no longer needed in Bootstrap 5, you can now add Buttons, Inputs directly to InputGroups in the order you wish.');
+    $match->( qr/<InputGroupButtonDropdown\b/ ,'This can now be replaced with a regular Dropdown component.');
+    $match->( qr/<CustomInput\b/ ,'These are no longer needed in Bootstrap 5, since all form inputs will be styled by Bootstrap instead of browser default. The existing Input component now supports file, select, switch, and range types.');
+    $match->( qr/<Jumbotron/ ,'Jumbotrons have been removed from Bootstrap 5, can be replaced with <div class="rounded px-3 px-sm-4 py-3 py-sm-5">. Jumbotron fluid can be replaced with <div class="bg-light mb-4 py-3 py-sm-5">');
+    # Tooltip/Popover/DropdownMenu - The modifiers prop will now conform to the new popper2 modifiers, which take an array instead of an object. offset prop is now an array of 2 numbers that represent skidding and distance. See popper docs for more details.
+    # ModalHeader/ToastHeader - Bootstrap 5 no longer supports custom close icons, so this feature was removed from ModalHeader and ToastHeader.
+    # Dropdown/DropdownMenu - The left and right properties are deprecated, but still supported for backwards compatibility. Now replaced with start and end in Bootstrap 5.
+    #>>>
+
+    return \@errors;
+}
+
+sub apply_fixes {
+    my ($line) = @_;
+
+    my ($class) = $line =~ m{class(?:Name)?="([^"]*)"};
+    return unless $class;
+
+    for ($class) { ## Set $_ to $class
+        s/\bno-gutters\b/g-0/g;
+        s/\bcustom-check\b/form-check/g;
+        s/\bcustom-switch\b/form-switch/g;
+        s/\bcustom-select\b/form-select/g;
+        s/\bcustom-range\b/form-range/g;
+        s/\bbadge-pill—use\b/rounded-pill/g;
+        s/\bclose\b/btn-close/g;
+        s/\btext-monospace\b/font-monospace/g;
+        s/\bfont-weight-/fw-/g;
+        s/\bfont-style-/fst-*/g;
+        s/\brounded-sm\b/rounded-1/g;
+        s/\brounded-lg\b/rounded-3/g;
+        s/\bsr-only\b/visually-hidden/g;
+        s/\bsr-only-focusable/visually-hidden-focusable/g;
+        s/\bleft-([\w-]+)/start-$1/g;
+        s/\bright-([\w-]+)/end-$1/g;
+        s/\b(float|border|rounded|text)-left/$1-start/g;
+        s/\b(float|border|rounded|text)-right/$1-end/g;
+        # Convert margin/padding left/right
+        s/\bml(-(?:xs|sm|md|lg|xl|xxl)|)-(n?\d+|auto)/ms$1-$2/g;
+        s/\bmr(-(?:xs|sm|md|lg|xl|xxl)|)-(n?\d+|auto)/me$1-$2/g;
+        s/\bpl(-(?:xs|sm|md|lg|xl|xxl)|)-(n?\d+|auto)/ps$1-$2/g;
+        s/\bpr(-(?:xs|sm|md|lg|xl|xxl)|)-(n?\d+|auto)/pe$1-$2/g;
+    }
+
+    # Act on the @_ aliased argument
+    $_[0] =~ s{class(Name|)="([^"]*)"}{class$1="$class"};
+}
+
+sub report {
+    my ($line) = (@_);
+    my @errors = ();
+
+    my $match = sub {
+        my ( $re, $msg ) = @_;
+        my ($class) = $line =~ m{class(?:Name)?="([^"]*)"};
+        return unless $class;
+        $class =~ $re && push @errors, $msg;
+    };
+
+    #<<<
+    $match->( qr/\bborder-[6-9]\b/ ,'We now only provide .order-1 to .order-5 out of the box.');
+    $match->( qr/\bmedia\b/ ,'Dropped the .media component as it can be easily replicated with utilities.');
+    $match->( qr/\bthead-(light|dark)\b/ ,'.thead-light and .thead-dark are dropped in favor of the .table-* variant classes which can be used for all table elements');
+    $match->( qr/\bpre-scollable\b/ ,'Dropped .pre-scrollable class.');
+    ## .text-* utilities do not add hover and focus states to links anymore. .link-* helper classes can be used instead.
+    $match->( qr/\btext-justify\b/, 'Dropped .text-justify class');
+    $match->( qr/\bcustom-file|\.form-file\b/ ,'.custom-file and .form-file have been replaced by custom styles on top of .form-control');
+    $match->( qr/\b(form-control-file|form-control-range)\b/ ,'Dropped native .form-control-file and .form-control-range.');
+    $match->( qr/\binput-group-(ap|pre)pend\b/ ,'Dropped .input-group-append and .input-group-prepend. You can now just add buttons and .input-group-text as direct children of the input groups.');
+    $match->( qr/\bform-(group|row|inline)\b/ ,'Dropped form-specific layout classes for our grid system. Use our grid and utilities instead of .form-group, .form-row, or .form-inline.');
+    ## Form labels now require .form-label.
+    ## Breaking .form-text no longer sets display, allowing you to create inline or block help text as you wish just by changing the HTML element.
+    $match->( qr/\bbadge-/ ,'Dropped all .badge-* color classes for background utilities (e.g., use .bg-primary instead of .badge-primary).');
+    $match->( qr/\bbtn-block\b/ ,'Dropped .btn-block for utilities. Instead of using .btn-block on the .btn, wrap your buttons with .d-grid and a .gap-* utility to space them as needed.');
+    $match->( qr/\bcard-deck\b/ ,'Dropped .card-deck in favor of our grid. ');
+    $match->( qr/\bcard-columns\b/ ,'Dropped .card-columns in favor of Masonry. ');
+    $match->( qr/\bcard\b/ ,'Replaced the .card based accordion with a new Accordion component.'); # ?
+    $match->( qr/\bembed-responsive-item\b/ ,'We’ve dropped the .embed-responsive-item and element group selector in favor of a simpler .ratio > * selector. No more class is needed, and the ratio helper now works with any HTML element.');
+    $match->( qr/\barrow\b/ ,'Renamed .arrow in the popover and tooltip templates to .popover-arrow and .tooltip-arrow');
+    ## /\bdata-/ && $p->('Rename data-toggle, etc to data-bs-toggle');
+    $match->( qr/\btext-hide\b/ ,'Removed .text-hide as it’s an antiquated method for hiding text that shouldn’t be used anymore.');
+
+    $match->( qr/\bm(r|l)(-(xs|sm|md|lg|xl|xxl))?-(\d+|auto)/, 'margin left/right converted to start/end');
+    $match->( qr/\bp(r|l)(-(xs|sm|md|lg|xl|xxl))?-(\d+|auto)/, 'padding left/right converted to start/end');
+    $match->( qr/\bm.?(-(xs|sm|md|lg|xl|xxl))?-(n\d+)/, 'negative margins disabled');
+    #>>>
+
+    return \@errors;
+}
+
+sub process_file {
+    my ($file) = @_;
+    $file =~ $SUFFIXES or return;
+
+    my @contents = $file->lines;
+    apply_fixes($_) for @contents;
+    $file->spew(@contents);
+
+    my $c = 1;
+    for my $line (@contents) {
+        my $errors = [ report($line)->@* , reactstrap_v9($line)->@* ];
+
+        # for my $error (@$errors){ say STDERR "$file|$c col 0|$error" };
+        # for my $error (@$errors){ say STDERR "$error at $file line $c." };
+        for my $error (@$errors) { say STDERR "$file:$c: $error" }
+        $c++;
+    }
+}
+
+sub process_dir {
+    my ($dir) = @_;
+
+    for my $file ( $dir->children ) {
+        if   ( $file->is_dir ) { process_dir($file); }
+        else                   { process_file($file); }
+    }
+}
+
+sub main {
+    for my $dir (@ARGV) {
+        process_dir( path($dir) );
+    }
+    exit(1);
+}
+
+main()
