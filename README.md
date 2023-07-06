@@ -52,8 +52,8 @@ format). For example:
     media -> Bootstrap dropped the .media component as it can be easily replicated with utilities.
 
 We have attempted to capture all the breaking changes reported by
-[Bootstrap](https://getbootstrap.com/docs/5.0/migration/#utilities) and
-[reactstrap](https://getbootstrap.com/docs/5.0/migration/#utilities).
+[Bootstrap](https://getbootstrap.com/docs/5.3/migration/#utilities) and
+[reactstrap](https://reactstrap.github.io/?path=/docs/home-upgrading--page).
 
 ## Warning
 
